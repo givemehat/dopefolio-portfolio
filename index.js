@@ -36,3 +36,17 @@ const headerLogoConatiner = document.querySelector('.header__logo-container')
 headerLogoConatiner.addEventListener('click', () => {
   location.href = 'index.html'
 })
+
+// Dynamic Copyright Year
+const yearSpan = document.getElementById('year');
+if (yearSpan) {
+    yearSpan.textContent = new Date().getFullYear();
+}
+
+// Basic form handling for Formspree
+const contactForm = document.querySelector('.contact__form');
+if (contactForm) {
+    contactForm.addEventListener('submit', function(e) {
+        // Formspree handles the POST request
+    });
+}
