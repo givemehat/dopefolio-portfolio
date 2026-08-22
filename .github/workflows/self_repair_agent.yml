@@ -1,0 +1,51 @@
+name: Autonomous Self-Repair & Build Agent
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs every day at midnight
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  agent_execution:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Important to allow the agent to push code
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Agent Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install beautifulsoup4 requests google-generativeai
+
+      - name: Run Autonomous Agent
+        env:
+          # If the user adds this secret, the AI will use Gemini to rewrite and repair text!
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
+        run: |
+          python scripts/autonomous_agent.py
+
+      - name: Commit and Push Agent Repairs
+        run: |
+          git config --global user.name 'Autonomous AI Agent'
+          git config --global user.email 'ai-agent@rajnish-portfolio.local'
+          git add .
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No repairs or updates needed today. The matrix is stable."
+          else
+            git commit -m "🤖 AI Agent: Autonomous self-repair and codebase optimization"
+            git push
+          fi
