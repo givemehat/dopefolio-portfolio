@@ -13,13 +13,20 @@ class AutonomousGuardian:
         self.html_files = glob.glob('./**/*.html', recursive=True)
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.llm_enabled = False
+        self.model = None
         
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                self.llm_enabled = True
-                logging.info("Gemini AI integration ACTIVE. Neural pathways engaged.")
+                # Find an available model dynamically for bulletproof fault tolerance
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        self.model = genai.GenerativeModel(m.name)
+                        self.llm_enabled = True
+                        logging.info(f"Gemini AI integration ACTIVE using {m.name}. Neural pathways engaged.")
+                        break
+                if not self.llm_enabled:
+                    logging.error("No suitable Gemini model found for generation.")
             except Exception as e:
                 logging.error(f"Failed to initialize Gemini AI: {e}")
         else:
@@ -28,9 +35,8 @@ class AutonomousGuardian:
     def validate_link(self, url):
         """Fault-tolerant link validation with timeout and retries."""
         if not url.startswith('http'):
-            return True # Skip internal links
+            return True
         try:
-            # 3 second timeout to prevent hanging
             response = requests.head(url, timeout=3, allow_redirects=True)
             if response.status_code >= 400:
                 logging.warning(f"Broken link detected: {url} (Status: {response.status_code})")
@@ -41,8 +47,7 @@ class AutonomousGuardian:
             return False
 
     def ai_improve_text(self, text):
-        """Uses LLM to improve grammar and tone, returning original if failed."""
-        if not self.llm_enabled or len(text.strip()) < 10:
+        if not self.llm_enabled or not self.model or len(text.strip()) < 10:
             return text
             
         prompt = (
@@ -77,7 +82,6 @@ class AutonomousGuardian:
         soup = BeautifulSoup(original_html, 'html.parser')
         modified = False
 
-        # 1. Self-Healing SEO: Ensure Alt Tags
         for img in soup.find_all('img'):
             if not img.get('alt') or img.get('alt').strip() == '':
                 src = img.get('src', '')
@@ -87,15 +91,10 @@ class AutonomousGuardian:
                 logging.info(f"SEO Healed: Added alt='{repair_alt}' to {src}")
                 modified = True
 
-        # 2. Autonomous Link Auditing (Dead Link Checker)
         for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href']
-            # We just log it for now to avoid destructively removing important links that might be temporarily down
-            self.validate_link(href)
+            self.validate_link(a_tag['href'])
 
-        # 3. AI Text Optimization (Advanced)
         if self.llm_enabled:
-            # Safely target only specific text paragraphs to avoid breaking code logic
             for p in soup.find_all('p', class_=['about__content-details-para', 'project-details__desc-para']):
                 original_text = p.get_text(strip=True)
                 if original_text:
@@ -105,7 +104,6 @@ class AutonomousGuardian:
                         logging.info("AI Rewrote paragraph for better impact.")
                         modified = True
 
-        # 4. Safe Write-Back
         if modified:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(str(soup))
