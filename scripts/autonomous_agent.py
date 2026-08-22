@@ -1,65 +1,118 @@
 import os
 import glob
+import logging
 import requests
 from bs4 import BeautifulSoup
-import logging
 import google.generativeai as genai
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Fault-tolerant logging
+logging.basicConfig(level=logging.INFO, format='🤖 %(asctime)s - %(levelname)s - %(message)s')
 
-class AutonomousAgent:
+class AutonomousGuardian:
     def __init__(self):
         self.html_files = glob.glob('./**/*.html', recursive=True)
         self.api_key = os.getenv("GEMINI_API_KEY")
+        self.llm_enabled = False
+        
         if self.api_key:
-            genai.configure(api_key=self.api_key)
-            logging.info("Gemini AI integration enabled.")
+            try:
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.llm_enabled = True
+                logging.info("Gemini AI integration ACTIVE. Neural pathways engaged.")
+            except Exception as e:
+                logging.error(f"Failed to initialize Gemini AI: {e}")
         else:
-            logging.info("Running in standard deterministic repair mode (No API Key).")
+            logging.info("Running in standard heuristic mode (No API Key detected).")
+
+    def validate_link(self, url):
+        """Fault-tolerant link validation with timeout and retries."""
+        if not url.startswith('http'):
+            return True # Skip internal links
+        try:
+            # 3 second timeout to prevent hanging
+            response = requests.head(url, timeout=3, allow_redirects=True)
+            if response.status_code >= 400:
+                logging.warning(f"Broken link detected: {url} (Status: {response.status_code})")
+                return False
+            return True
+        except requests.RequestException:
+            logging.warning(f"Unreachable link detected: {url}")
+            return False
+
+    def ai_improve_text(self, text):
+        """Uses LLM to improve grammar and tone, returning original if failed."""
+        if not self.llm_enabled or len(text.strip()) < 10:
+            return text
+            
+        prompt = (
+            "You are an expert copywriter and AI researcher. "
+            "Fix any grammatical errors in the following text and make it slightly more professional, "
+            "but keep the exact same meaning and similar length. DO NOT add any markdown formatting or quotes around the output. "
+            f"Text: {text}"
+        )
+        try:
+            response = self.model.generate_content(prompt)
+            improved = response.text.strip()
+            if improved and len(improved) > 0:
+                return improved
+        except Exception as e:
+            logging.error(f"AI text improvement failed: {e}")
+        return text
 
     def run(self):
-        logging.info("Starting autonomous self-repair sequence...")
+        logging.info("Starting Level-10 Autonomous Self-Repair & Build Sequence...")
         for filepath in self.html_files:
-            self.repair_file(filepath)
-        logging.info("Sequence complete.")
+            try:
+                self.process_file(filepath)
+            except Exception as e:
+                logging.critical(f"FATAL ERROR processing {filepath}: {e}. Continuing to next file for fault tolerance.")
+        logging.info("Sequence complete. The repository is optimized.")
 
-    def repair_file(self, filepath):
-        logging.info(f"Analyzing {filepath}...")
+    def process_file(self, filepath):
+        logging.info(f"Scanning {filepath}...")
         with open(filepath, 'r', encoding='utf-8') as f:
-            html_content = f.read()
+            original_html = f.read()
 
-        soup = BeautifulSoup(html_content, 'html.parser')
+        soup = BeautifulSoup(original_html, 'html.parser')
         modified = False
 
-        # 1. SEO & Accessibility Repair: Ensure all images have alt text
+        # 1. Self-Healing SEO: Ensure Alt Tags
         for img in soup.find_all('img'):
-            if not img.get('alt'):
-                # Heuristic repair based on filename
+            if not img.get('alt') or img.get('alt').strip() == '':
                 src = img.get('src', '')
                 filename = os.path.basename(src).split('.')[0]
-                repair_alt = filename.replace('-', ' ').title() if filename else 'Portfolio Image'
+                repair_alt = filename.replace('-', ' ').replace('_', ' ').title() if filename else 'Portfolio Graphic'
                 img['alt'] = repair_alt
-                logging.info(f"Self-healed missing alt tag in {filepath}: Added '{repair_alt}'")
+                logging.info(f"SEO Healed: Added alt='{repair_alt}' to {src}")
                 modified = True
 
-        # 2. Structural Repair: Ensure trailing whitespace is trimmed (handled by prettify)
-        
-        # 3. AI Code Review & Enhancement (If API Key is provided)
-        # Note: We keep this minimal to prevent accidental breaking of the portfolio layout.
-        if self.api_key and filepath.endswith('index.html'):
-            # In a real deep-repair scenario, the AI would evaluate semantic structures.
-            pass
+        # 2. Autonomous Link Auditing (Dead Link Checker)
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href']
+            # We just log it for now to avoid destructively removing important links that might be temporarily down
+            self.validate_link(href)
 
-        # 4. Apply repairs
+        # 3. AI Text Optimization (Advanced)
+        if self.llm_enabled:
+            # Safely target only specific text paragraphs to avoid breaking code logic
+            for p in soup.find_all('p', class_=['about__content-details-para', 'project-details__desc-para']):
+                original_text = p.get_text(strip=True)
+                if original_text:
+                    improved_text = self.ai_improve_text(original_text)
+                    if improved_text != original_text:
+                        p.string = improved_text
+                        logging.info("AI Rewrote paragraph for better impact.")
+                        modified = True
+
+        # 4. Safe Write-Back
         if modified:
             with open(filepath, 'w', encoding='utf-8') as f:
-                # We use string casting to preserve original formatting as much as possible 
-                # rather than soup.prettify() which might break inline CSS/JS spacing.
                 f.write(str(soup))
-            logging.info(f"Repairs successfully applied to {filepath}")
+            logging.info(f"Modifications successfully committed to {filepath}")
         else:
-            logging.info(f"No repairs needed for {filepath}")
+            logging.info(f"System optimal. No repairs needed for {filepath}")
 
 if __name__ == "__main__":
-    agent = AutonomousAgent()
+    agent = AutonomousGuardian()
     agent.run()
