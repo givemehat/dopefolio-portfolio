@@ -1,0 +1,40 @@
+name: Auto Triage & Welcome
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Welcome & Label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR = !!context.payload.pull_request;
+            const issueNumber = context.issue.number;
+            const creator = context.payload.sender.login;
+            
+            // Add a friendly welcome comment
+            const body = `Hello @${creator}! 👋\n\nThank you for contributing to this repository. Rajnish (or the AI Agent) will review this shortly!`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: body
+            });
+
+            // Add labels
+            const labels = isPR ? ['needs-review', 'pr'] : ['triage', 'issue'];
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: labels
+            });
